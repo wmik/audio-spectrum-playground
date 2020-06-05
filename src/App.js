@@ -2,16 +2,17 @@ import React from 'react';
 import sample from './sample.mp3';
 
 const defaultProps = {
+  barColor: [
+    { offset: 0, color: '#833ab4' },
+    { offset: 0.5, color: '#fd411d' },
+    { offset: 1, color: '#ffa321' }
+  ],
+  barCount: 512,
+  barGap: 4,
+  barWidth: 2,
   capColor: '#fff',
   capHeight: 2,
-  gap: 4,
-  meterCount: 512,
-  meterColor: [
-    { stop: 0, color: '#833ab4' },
-    { stop: 0.5, color: '#fd411d' },
-    { stop: 1, color: '#ffa321' }
-  ],
-  meterWidth: 2
+  gradientCoordinates: [0, 0, 0, 300]
 };
 
 function useAudioSpectrum(options) {
@@ -45,16 +46,16 @@ function useAudioSpectrum(options) {
     let canvasWidth = canvasRef.current.width;
     let canvasHeight = canvasRef.current.height - props.capHeight;
     let ctx = canvasRef.current.getContext('2d');
-    let gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    let gradient = ctx.createLinearGradient(...props.gradientCoordinates);
 
-    if (Array.isArray(props.meterColor)) {
-      props.meterColor.forEach(meter =>
-        gradient.addColorStop(meter.stop, meter.color)
+    if (Array.isArray(props.barColor)) {
+      props.barColor.forEach(config =>
+        gradient.addColorStop(config.offset, config.color)
       );
     }
 
-    if (typeof props.meterColor === 'string') {
-      gradient = props.meterColor;
+    if (typeof props.barColor === 'string') {
+      gradient = props.barColor;
     }
 
     function drawMeter() {
@@ -63,8 +64,6 @@ function useAudioSpectrum(options) {
       analyserRef.current.getByteFrequencyData(array);
 
       if (audioRef.current.paused) {
-        array = array.map(() => 0);
-
         let allCapsReachBottom = capYPositionList.every(cap => cap === 0);
 
         if (allCapsReachBottom) {
@@ -73,34 +72,34 @@ function useAudioSpectrum(options) {
         }
       }
 
-      let step = Math.round(array.length / props.meterCount);
+      let step = Math.round(array.length / props.barCount);
 
       ctx.clearRect(0, 0, canvasWidth, canvasHeight + props.capHeight);
 
-      for (let i = 0; i < props.meterCount; i++) {
-        let capYPosition = array[i * step];
+      for (let meterIndex = 0; meterIndex < props.barCount; meterIndex++) {
+        let capYPosition = array[meterIndex * step];
 
-        if (capYPositionList.length < Math.round(props.meterCount)) {
+        if (capYPositionList.length < Math.round(props.barCount)) {
           capYPositionList.push(capYPosition);
         }
 
-        let x = i * (props.meterWidth + props.gap);
+        let x = meterIndex * (props.barWidth + props.barGap);
         let y = ((270 - capYPosition) * canvasHeight) / 270;
 
         ctx.fillStyle = props.capColor;
 
-        if (capYPosition < capYPositionList[i]) {
-          let previousCapYPosition = --capYPositionList[i];
+        if (capYPosition < capYPositionList[meterIndex]) {
+          let previousCapYPosition = --capYPositionList[meterIndex];
           let y = ((270 - previousCapYPosition) * canvasHeight) / 270;
 
-          ctx.fillRect(x, y, props.meterWidth, props.capHeight);
+          ctx.fillRect(x, y, props.barWidth, props.capHeight);
         } else {
-          ctx.fillRect(x, y, props.meterWidth, props.capHeight);
-          capYPositionList[i] = capYPosition;
+          ctx.fillRect(x, y, props.barWidth, props.capHeight);
+          capYPositionList[meterIndex] = capYPosition;
         }
 
         ctx.fillStyle = gradient;
-        ctx.fillRect(x, y + props.capHeight, props.meterWidth, canvasHeight);
+        ctx.fillRect(x, y + props.capHeight, props.barWidth, canvasHeight);
       }
 
       animationId = window.requestAnimationFrame(drawMeter);
