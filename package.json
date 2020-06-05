@@ -1,10 +1,13 @@
 {
-  "name": "react",
+  "name": "audio-spectrum-playground",
   "version": "1.0.0",
-  "description": "React example starter project",
+  "description": "Playground to test audio spectrum visualization using the WebAudio API",
   "keywords": [
-    "react",
-    "starter"
+    "analyser",
+    "audio",
+    "playground",
+    "spectrum",
+    "react"
   ],
   "main": "src/index.js",
   "dependencies": {
