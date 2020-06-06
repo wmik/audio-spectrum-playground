@@ -7,12 +7,15 @@ const defaultProps = {
     { offset: 0.5, color: '#fd411d' },
     { offset: 1, color: '#ffa321' }
   ],
+  barColorLinearGradient: [0, 0, 0, 300],
   barCount: 512,
   barGap: 4,
   barWidth: 2,
   capColor: '#fff',
   capHeight: 2,
-  gradientCoordinates: [0, 0, 0, 300]
+  fftSize: 2048,
+  smoothingTimeConstant: 0.8,
+  translateYVector: 270
 };
 
 function useAudioSpectrum(options) {
@@ -29,8 +32,8 @@ function useAudioSpectrum(options) {
     if (analyserRef.current === null) {
       analyserRef.current = audioContext.createAnalyser();
 
-      analyserRef.current.smoothingTimeConstant = 0.8;
-      analyserRef.current.fftSize = 2048;
+      analyserRef.current.smoothingTimeConstant = props.smoothingTimeConstant;
+      analyserRef.current.fftSize = props.fftSize;
     }
 
     if (mediaElementSrcRef.current === null) {
@@ -46,7 +49,7 @@ function useAudioSpectrum(options) {
     let canvasWidth = canvasRef.current.width;
     let canvasHeight = canvasRef.current.height - props.capHeight;
     let ctx = canvasRef.current.getContext('2d');
-    let gradient = ctx.createLinearGradient(...props.gradientCoordinates);
+    let gradient = ctx.createLinearGradient(...props.barColorLinearGradient);
 
     if (Array.isArray(props.barColor)) {
       props.barColor.forEach(config =>
@@ -58,54 +61,61 @@ function useAudioSpectrum(options) {
       gradient = props.barColor;
     }
 
-    function drawMeter() {
-      let array = new Uint8Array(analyserRef.current.frequencyBinCount);
+    function drawBar() {
+      let frequencyList = new Uint8Array(analyserRef.current.frequencyBinCount);
 
-      analyserRef.current.getByteFrequencyData(array);
+      analyserRef.current.getByteFrequencyData(frequencyList);
 
       if (audioRef.current.paused) {
         let allCapsReachBottom = capYPositionList.every(cap => cap === 0);
 
         if (allCapsReachBottom) {
           ctx.clearRect(0, 0, canvasWidth, canvasHeight + props.capHeight);
+
           return window.cancelAnimationFrame(animationId);
         }
       }
 
-      let step = Math.round(array.length / props.barCount);
+      let step = Math.round(frequencyList.length / props.barCount);
 
       ctx.clearRect(0, 0, canvasWidth, canvasHeight + props.capHeight);
 
-      for (let meterIndex = 0; meterIndex < props.barCount; meterIndex++) {
-        let capYPosition = array[meterIndex * step];
+      let frequencyIndex = 0;
+
+      for (; frequencyIndex < props.barCount; frequencyIndex++) {
+        let amplitude = frequencyList[frequencyIndex * step];
 
         if (capYPositionList.length < Math.round(props.barCount)) {
-          capYPositionList.push(capYPosition);
+          capYPositionList.push(amplitude);
         }
 
-        let x = meterIndex * (props.barWidth + props.barGap);
-        let y = ((270 - capYPosition) * canvasHeight) / 270;
+        let x = frequencyIndex * (props.barWidth + props.barGap);
+        let y =
+          ((props.translateYVector - amplitude) * canvasHeight) /
+          props.translateYVector;
 
         ctx.fillStyle = props.capColor;
 
-        if (capYPosition < capYPositionList[meterIndex]) {
-          let previousCapYPosition = --capYPositionList[meterIndex];
-          let y = ((270 - previousCapYPosition) * canvasHeight) / 270;
+        if (amplitude < capYPositionList[frequencyIndex]) {
+          let previousCapYPosition = --capYPositionList[frequencyIndex];
+          let y =
+            ((props.translateYVector - previousCapYPosition) * canvasHeight) /
+            props.translateYVector;
 
           ctx.fillRect(x, y, props.barWidth, props.capHeight);
         } else {
           ctx.fillRect(x, y, props.barWidth, props.capHeight);
-          capYPositionList[meterIndex] = capYPosition;
+          capYPositionList[frequencyIndex] = amplitude;
         }
 
         ctx.fillStyle = gradient;
         ctx.fillRect(x, y + props.capHeight, props.barWidth, canvasHeight);
       }
 
-      animationId = window.requestAnimationFrame(drawMeter);
+      animationId = window.requestAnimationFrame(drawBar);
     }
 
-    animationId = window.requestAnimationFrame(drawMeter);
+    animationId = window.requestAnimationFrame(drawBar);
   }
 
   React.useEffect(() => {
